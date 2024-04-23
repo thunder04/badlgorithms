@@ -1,0 +1,110 @@
+/// # Path with maximum gold
+///
+/// ## Problem
+///
+/// In a grid of size `N x N`, each cell has an integer representing the amount of gold in that cell,
+/// `0` if it's empty.
+///
+/// Return the path where you can get the maxium amount of gold, under these conditions:
+/// - You can only go to the right, bottom or diagonal to the bottom-right.
+/// - You cannot visit the same cell more than once.
+/// - You will start from `(1, 1)` and end to `(N, N)`.
+///
+/// ## Solution
+///
+/// Provided as an assignment from my professor in Algorithms, this is my solution.
+/// It is solved as a dynamic programming (bottom-up version) problem:
+///
+/// ```
+/// r(x, y) = {
+///   0, if x = 0 or y = 0,
+///   f(x, y) + max{ r(x - 1, y), r(x, y - 1), r(x - 1, y - 1) }, elsewhere
+/// }
+/// ```
+///
+/// Where:
+/// - `r(x, y)` is the sum of the maximum amount of gold we would get if we started from the cell `(x, y)`.
+/// - `f(x, y)` the amount of gold the cell `(x, y)` has.
+
+fn main() {
+    const SIZE: usize = 5;
+
+    const GRID: Grid<SIZE> = [
+        [4, 0, 2, 0, 9],
+        [0, 7, 5, 0, 0],
+        [0, 0, 6, 3, 0],
+        [0, 2, 1, 0, 0],
+        [0, 8, 0, 8, 2],
+    ];
+
+    let (amount_of_gold, _path) = path_with_maximum_gold(&GRID);
+
+    println!("{amount_of_gold}");
+}
+
+type Num = u16;
+type Grid<const N: usize> = [[Num; N]; N];
+type TabulationTable<const N: usize> = [[Option<Num>; N]; N];
+
+struct Cell {
+    pub x: usize,
+    pub y: usize,
+}
+
+impl From<(usize, usize)> for Cell {
+    fn from(value: (usize, usize)) -> Self {
+        Self {
+            x: value.0,
+            y: value.1,
+        }
+    }
+}
+
+fn path_with_maximum_gold<const N: usize>(grid: &Grid<N>) -> (Num, Vec<(usize, usize)>) {
+    let mut tabulation_table: TabulationTable<N> = [[None; N]; N];
+    let max_amount_of_gold = path_with_maximum_gold_sol(
+        grid,
+        &mut tabulation_table,
+        ((N - 1) as _, (N - 1) as _).into(),
+    );
+
+    println!("{tabulation_table:?}");
+
+    (max_amount_of_gold, Vec::new())
+}
+
+fn path_with_maximum_gold_sol<const N: usize>(
+    grid: &Grid<N>,
+    tabulation_table: &mut TabulationTable<N>,
+    cell: Cell,
+) -> Num {
+    // If x = 0 or y = 0
+    if matches!(cell, Cell { x: 0, .. } | Cell { y: 0, .. }) {
+        return 0;
+    }
+
+    // Return cached value if it exists
+    if let Some(amount) = tabulation_table[cell.y][cell.x] {
+        return amount;
+    }
+
+    let mut max_gold = u16::MIN;
+
+    // Solving it bottom-up also means to mirror diagonally the moving constraint,
+    // so go left, up and diagonal up-left.
+    for x in [
+        path_with_maximum_gold_sol(grid, tabulation_table, (cell.x - 1, cell.y).into()),
+        path_with_maximum_gold_sol(grid, tabulation_table, (cell.x, cell.y - 1).into()),
+        path_with_maximum_gold_sol(grid, tabulation_table, (cell.x - 1, cell.y - 1).into()),
+    ] {
+        if x > max_gold {
+            max_gold = x;
+        }
+    }
+
+    let amount = grid[cell.y][cell.x] + max_gold;
+
+    // Cache and return the result
+    tabulation_table[cell.y][cell.x] = Some(amount);
+    amount
+}
