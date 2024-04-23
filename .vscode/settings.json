@@ -18,5 +18,9 @@
         "titleBar.inactiveBackground": "#4846e899",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#4846e8"
+    "peacock.color": "#4846e8",
+    "markdownlint.config": {
+        "default": true,
+        "no-inline-html": false
+    }
 }
