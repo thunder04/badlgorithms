@@ -38,22 +38,35 @@ fn main() {
     ];
 
     let (amount_of_gold, path) = path_with_maximum_gold(&GRID);
+    // Convert it into a HashSet for the `O(1)` lookup performance. It's optional
+    let path: std::collections::HashSet<_> = path.into_iter().collect();
 
-    println!("{amount_of_gold} {path:?}");
+    for x in 0..SIZE {
+        for y in 0..SIZE {
+            let cell = Cell { x, y };
+
+            if path.contains(&cell) {
+                print!("\x1b[31m");
+            }
+
+            print!("{} ", GRID[y][x]);
+
+            if path.contains(&cell) {
+                print!("\x1b[0m");
+            }
+        }
+
+        println!();
+    }
+
+    println!("\nMaximum amount of gold to be collected: {amount_of_gold}");
 }
 
 type Num = u16;
 type Grid<const N: usize> = [[Num; N]; N];
 type TabulationTable<const N: usize> = [[Option<(Num, Direction)>; N]; N];
 
-#[derive(Clone, Copy, Debug)]
-enum Direction {
-    Left,
-    Bottom,
-    DiagonalBL,
-}
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Cell {
     pub x: usize,
     pub y: usize,
@@ -66,6 +79,13 @@ impl From<(usize, usize)> for Cell {
             y: value.1,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Direction {
+    Left,
+    Top,
+    DiagonalTL,
 }
 
 fn path_with_maximum_gold<const N: usize>(grid: &Grid<N>) -> (Num, Vec<Cell>) {
@@ -84,15 +104,14 @@ fn path_with_maximum_gold<const N: usize>(grid: &Grid<N>) -> (Num, Vec<Cell>) {
     while curr_cell.x != 0 && curr_cell.y != 0 {
         curr_cell = match tabulation_table[curr_cell.y][curr_cell.x] {
             Some((_, Direction::Left)) => (curr_cell.x - 1, curr_cell.y).into(),
-            Some((_, Direction::Bottom)) => (curr_cell.x, curr_cell.y - 1).into(),
-            Some((_, Direction::DiagonalBL)) => (curr_cell.x - 1, curr_cell.y - 1).into(),
+            Some((_, Direction::Top)) => (curr_cell.x, curr_cell.y - 1).into(),
+            Some((_, Direction::DiagonalTL)) => (curr_cell.x - 1, curr_cell.y - 1).into(),
             None => break,
         };
 
         path.push(curr_cell);
     }
 
-    path.push(Cell { x: 0, y: 0 });
     (max_amount, path)
 }
 
@@ -103,7 +122,7 @@ fn path_with_maximum_gold_sol<const N: usize>(
 ) -> Num {
     // If x = 0 or y = 0
     if matches!(cell, Cell { x: 0, .. } | Cell { y: 0, .. }) {
-        return 0;
+        return grid[cell.y][cell.x];
     }
 
     // Return cached value if it exists
@@ -121,11 +140,11 @@ fn path_with_maximum_gold_sol<const N: usize>(
             path_with_maximum_gold_sol(grid, tabulation_table, (cell.x - 1, cell.y).into()),
         ),
         (
-            Direction::Bottom,
+            Direction::Top,
             path_with_maximum_gold_sol(grid, tabulation_table, (cell.x, cell.y - 1).into()),
         ),
         (
-            Direction::DiagonalBL,
+            Direction::DiagonalTL,
             path_with_maximum_gold_sol(grid, tabulation_table, (cell.x - 1, cell.y - 1).into()),
         ),
     ] {
