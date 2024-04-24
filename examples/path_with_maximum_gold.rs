@@ -41,8 +41,8 @@ fn main() {
     // Convert it into a HashSet for the `O(1)` lookup performance. It's optional
     let path: std::collections::HashSet<_> = path.into_iter().collect();
 
-    for x in 0..SIZE {
-        for y in 0..SIZE {
+    for y in 0..SIZE {
+        for x in 0..SIZE {
             let cell = Cell { x, y };
 
             if path.contains(&cell) {
