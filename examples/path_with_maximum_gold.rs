@@ -31,19 +31,31 @@ use std::{
     iter::{repeat, repeat_with},
 };
 
+const MAX_GOLD_AMOUNT: u32 = 9999;
+const GRID_LEN: usize = 23;
+
 fn main() {
-    const GRID_LEN: usize = 44;
+    let mut max_digits_count = 1;
 
     let grid: Grid = repeat_with(|| {
-        repeat_with(|| fastrand::u32(..9))
-            .take(GRID_LEN)
-            .collect::<Vec<_>>()
+        repeat_with(|| {
+            let gold_amount = fastrand::u32(0..=MAX_GOLD_AMOUNT);
+            let digits_count = gold_amount.checked_ilog10().unwrap_or(0) + 1;
+
+            if digits_count > max_digits_count {
+                max_digits_count = digits_count;
+            }
+
+            gold_amount
+        })
+        .take(GRID_LEN)
+        .collect::<Vec<_>>()
     })
     .take(GRID_LEN)
     .collect();
 
     let (amount_of_gold, path) = path_with_maximum_gold(&grid);
-    // Convert it into a HashSet for the `O(1)` lookup performance. Optional
+    // Convert it into a HashSet for `O(1)` lookup performance. Optional
     let path: HashSet<_> = path.into_iter().collect();
 
     for y in 0..GRID_LEN {
@@ -54,7 +66,7 @@ fn main() {
                 print!("\x1b[31m");
             }
 
-            print!("{} ", grid[y][x]);
+            print!("{:0width$} ", grid[y][x], width = max_digits_count as _);
 
             if path.contains(&cell) {
                 print!("\x1b[0m");
