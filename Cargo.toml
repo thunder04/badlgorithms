@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+fastrand = "2.0.2"
 
 [profile.dev]
 opt-level = 3
