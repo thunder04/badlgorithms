@@ -4,7 +4,7 @@ use std::{
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct VertexIdx(usize);
+pub struct VertexIdx(pub(super) usize);
 
 impl VertexIdx {
     pub(super) fn new() -> Self {
@@ -48,10 +48,10 @@ impl<V, E> Graph<V, E> {
         self.vertices.get_mut(&vertex_idx)
     }
 
-    /// Insert or update a vertex with weight `V` in `O(1)`. Returns its ID.
+    /// Insert a vertex with weight `V` in `O(1)`. Returns its ID.
     ///
     /// Use [`Self::insert_edge`] or [`Self::insert_edges`] to define its edges.
-    pub fn insert_or_update_vertex(&mut self, weight: V) -> VertexIdx {
+    pub fn insert_vertex(&mut self, weight: V) -> VertexIdx {
         let idx = VertexIdx::new();
 
         self.vertices.insert(
@@ -65,10 +65,10 @@ impl<V, E> Graph<V, E> {
         idx
     }
 
-    /// Insert or update a vertex with weight `V` and a predefined ID in `O(1)`. Returns `self`.
+    /// Insert or update a vertex with weight `V` and a specified ID in `O(1)`. Returns `self`.
     ///
     /// Use [`Self::insert_edge`] or [`Self::insert_edges`] to define its edges.
-    pub fn insert_or_update_vertex_with_id(&mut self, weight: V, idx: VertexIdx) -> &mut Self {
+    pub fn insert_or_update_vertex(&mut self, weight: V, idx: VertexIdx) -> &mut Self {
         self.vertices.insert(
             idx,
             Vertex {
@@ -135,10 +135,10 @@ impl<V, E> Graph<V, E> {
 
     /// Filter and optionally map to new types, vertices and edges of this graph in `O(|V||E|)`.
     ///
-    /// - `vertex_map(vertex_idx) -> Option<new_vertex_weight>`
+    /// - `vertex_map`: `|vertex_idx| -> Option<new_vertex_weight>`
     ///     - Return `None` to exclude the vertex with ID `vertex_idx`.
     ///     - The mapped vertex is guaranteed to have the same ID.
-    /// - `edge_map((from_vertex_idx, from_vertex), (to_vertex_idx, to_vertex), old_edge_weight) -> Option<new_edge_weight>`
+    /// - `edge_map`: `|(from_vertex_idx, from_vertex), (to_vertex_idx, to_vertex), old_edge_weight| -> Option<new_edge_weight>`
     ///     - It is called only if `vertex_map` returned `Some(_)` for both `from_vertex_idx` and `to_vertex_idx`.
     ///     - Return `None` to exclude the edge `(from_vertex_idx, to_vertex_idx)`.
     pub fn filter_map<F, G, NV, NE>(&self, mut vertex_map: F, mut edge_map: G) -> Graph<NV, NE>
@@ -150,7 +150,7 @@ impl<V, E> Graph<V, E> {
 
         for (&vertex_idx, _) in &self.vertices {
             if let Some(new_vertex_weight) = vertex_map(vertex_idx) {
-                graph.insert_or_update_vertex_with_id(new_vertex_weight, vertex_idx);
+                graph.insert_or_update_vertex(new_vertex_weight, vertex_idx);
             }
         }
 
@@ -235,10 +235,10 @@ mod tests {
         //               ⤷---⤴
         let mut graph = Graph::<u16, ()>::new();
 
-        let a_idx = graph.insert_or_update_vertex(23);
-        let b_idx = graph.insert_or_update_vertex(1);
-        let c_idx = graph.insert_or_update_vertex(7);
-        let d_idx = graph.insert_or_update_vertex(9);
+        let a_idx = graph.insert_vertex(23);
+        let b_idx = graph.insert_vertex(1);
+        let c_idx = graph.insert_vertex(7);
+        let d_idx = graph.insert_vertex(9);
 
         graph.insert_or_update_edge(a_idx, b_idx, ());
         graph.insert_or_update_edges([
@@ -250,7 +250,7 @@ mod tests {
             (d_idx, d_idx, ()),
         ]);
 
-        let temp_idx = graph.insert_or_update_vertex(u16::MAX);
+        let temp_idx = graph.insert_vertex(u16::MAX);
 
         assert_eq!(
             graph.remove_vertex(temp_idx).map(|x| x.into_weight()),
@@ -298,9 +298,9 @@ mod tests {
         //       8
         let mut graph = Graph::<u16, u8>::new();
 
-        let a_idx = graph.insert_or_update_vertex(3);
-        let b_idx = graph.insert_or_update_vertex(6);
-        let c_idx = graph.insert_or_update_vertex(8);
+        let a_idx = graph.insert_vertex(3);
+        let b_idx = graph.insert_vertex(6);
+        let c_idx = graph.insert_vertex(8);
 
         graph.insert_or_update_edges([
             (b_idx, c_idx, 2),
