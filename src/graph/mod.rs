@@ -48,10 +48,10 @@ impl<V, E> Graph<V, E> {
         self.vertices.get_mut(&vertex_idx)
     }
 
-    /// Insert a vertex with weight `V` in `O(1)`. Returns its ID.
+    /// Insert or update a vertex with weight `V` in `O(1)`. Returns its ID.
     ///
     /// Use [`Self::insert_edge`] or [`Self::insert_edges`] to define its edges.
-    pub fn insert_vertex(&mut self, weight: V) -> VertexIdx {
+    pub fn insert_or_update_vertex(&mut self, weight: V) -> VertexIdx {
         let idx = VertexIdx::new();
 
         self.vertices.insert(
@@ -63,6 +63,21 @@ impl<V, E> Graph<V, E> {
         );
 
         idx
+    }
+
+    /// Insert or update a vertex with weight `V` and a predefined ID in `O(1)`. Returns `self`.
+    ///
+    /// Use [`Self::insert_edge`] or [`Self::insert_edges`] to define its edges.
+    pub fn insert_or_update_vertex_with_id(&mut self, weight: V, idx: VertexIdx) -> &mut Self {
+        self.vertices.insert(
+            idx,
+            Vertex {
+                edges: HashMap::new(),
+                weight,
+            },
+        );
+
+        self
     }
 
     /// Remove a vertex by its ID in `O(|V|)`. Returns the [`Vertex`] itself, if it exists.
@@ -117,6 +132,56 @@ impl<V, E> Graph<V, E> {
     pub fn remove_edge(&mut self, from: VertexIdx, to: VertexIdx) -> Option<E> {
         self.vertices.get_mut(&from)?.edges.remove(&to)
     }
+
+    /// Filter and optionally map to new types, vertices and edges of this graph in `O(|V||E|)`.
+    ///
+    /// - `vertex_map(vertex_idx) -> Option<new_vertex_weight>`
+    ///     - Return `None` to exclude the vertex with ID `vertex_idx`.
+    ///     - The mapped vertex is guaranteed to have the same ID.
+    /// - `edge_map((from_vertex_idx, from_vertex), (to_vertex_idx, to_vertex), old_edge_weight) -> Option<new_edge_weight>`
+    ///     - It is called only if `vertex_map` returned `Some(_)` for both `from_vertex_idx` and `to_vertex_idx`.
+    ///     - Return `None` to exclude the edge `(from_vertex_idx, to_vertex_idx)`.
+    pub fn filter_map<F, G, NV, NE>(&self, mut vertex_map: F, mut edge_map: G) -> Graph<NV, NE>
+    where
+        F: FnMut(VertexIdx) -> Option<NV>,
+        G: FnMut((VertexIdx, &Vertex<NV, NE>), (VertexIdx, &Vertex<NV, NE>), &E) -> Option<NE>,
+    {
+        let mut graph = Graph::new();
+
+        for (&vertex_idx, _) in &self.vertices {
+            if let Some(new_vertex_weight) = vertex_map(vertex_idx) {
+                graph.insert_or_update_vertex_with_id(new_vertex_weight, vertex_idx);
+            }
+        }
+
+        'outer: for (&from_vertex_idx, old_vertex) in &self.vertices {
+            for (&to_vertex_idx, old_edge) in &old_vertex.edges {
+                // Skip edges that their `from` part doesn't exist in the new graph
+                //
+                // This statement could have been outside of this for loop if it weren't
+                // for the rustc compiler complaining about:
+                //     error[E0502]: cannot borrow `graph` as mutable because it is also borrowed as immutable
+                let Some(from_vertex) = graph.get_vertex(from_vertex_idx) else {
+                    continue 'outer;
+                };
+
+                // Skip edges that their `to` part doesn't exist in the new graph
+                let Some(to_vertex) = graph.get_vertex(to_vertex_idx) else {
+                    continue;
+                };
+
+                if let Some(new_edge_weight) = edge_map(
+                    (from_vertex_idx, from_vertex),
+                    (to_vertex_idx, to_vertex),
+                    old_edge,
+                ) {
+                    graph.insert_or_update_edge(from_vertex_idx, to_vertex_idx, new_edge_weight);
+                }
+            }
+        }
+
+        graph
+    }
 }
 
 #[derive(Debug)]
@@ -163,17 +228,17 @@ mod tests {
 
     #[test]
     fn test_relationships() {
-        // The end graph should look like this:
+        // The graph should look like this:
         //   [a: 23]-→[b: 1]
         //     ↑ ↓   ↖   ↑
         //   a[c: 7]  [d: 9] ↰
         //               ⤷---⤴
         let mut graph = Graph::<u16, ()>::new();
 
-        let a_idx = graph.insert_vertex(23);
-        let b_idx = graph.insert_vertex(1);
-        let c_idx = graph.insert_vertex(7);
-        let d_idx = graph.insert_vertex(9);
+        let a_idx = graph.insert_or_update_vertex(23);
+        let b_idx = graph.insert_or_update_vertex(1);
+        let c_idx = graph.insert_or_update_vertex(7);
+        let d_idx = graph.insert_or_update_vertex(9);
 
         graph.insert_or_update_edge(a_idx, b_idx, ());
         graph.insert_or_update_edges([
@@ -185,7 +250,7 @@ mod tests {
             (d_idx, d_idx, ()),
         ]);
 
-        let temp_idx = graph.insert_vertex(u16::MAX);
+        let temp_idx = graph.insert_or_update_vertex(u16::MAX);
 
         assert_eq!(
             graph.remove_vertex(temp_idx).map(|x| x.into_weight()),
@@ -214,6 +279,73 @@ mod tests {
         test_neighbors(b, &[]);
         test_neighbors(c, &[a_idx]);
         test_neighbors(d, &[b_idx, a_idx, d_idx]);
+    }
+
+    #[test]
+    fn test_filter_map() {
+        // The graph will look like this:
+        //
+        //              6
+        //         _________
+        //        /         \
+        //        ↓    3    |
+        //   [c: 8] ------> [a: 3]
+        //    ↑   |
+        //  2 |   | 4
+        //    |   ↓
+        //   [b: 6] ↰
+        //     ⤷---⤴
+        //       8
+        let mut graph = Graph::<u16, u8>::new();
+
+        let a_idx = graph.insert_or_update_vertex(3);
+        let b_idx = graph.insert_or_update_vertex(6);
+        let c_idx = graph.insert_or_update_vertex(8);
+
+        graph.insert_or_update_edges([
+            (b_idx, c_idx, 2),
+            (c_idx, b_idx, 4),
+            (a_idx, c_idx, 6),
+            (c_idx, a_idx, 3),
+            (b_idx, b_idx, 8),
+        ]);
+
+        // The graph should look like this:
+        //
+        //              1
+        //         _________
+        //        /         \
+        //        ↓    2    |
+        //   [c: 4] ------> [b: 3]
+        let mapped_graph: Graph<u16, i8> = graph.filter_map(
+            |idx| {
+                let weight = graph.get_vertex(idx)?.weight();
+
+                (weight % 2 == 0).then_some(weight / 2)
+            },
+            |(from_vertex_idx, _), (to_vertex_idx, _), old_edge_weight| {
+                // Remove cycles
+                (from_vertex_idx != to_vertex_idx).then_some(*old_edge_weight as i8 / 2)
+            },
+        );
+
+        assert!(
+            mapped_graph.get_vertex(a_idx).is_none(),
+            "Vertex a shouldn't exist"
+        );
+
+        let b = mapped_graph
+            .get_vertex(b_idx)
+            .expect("Vertex b doesn't exist");
+        let c = mapped_graph
+            .get_vertex(c_idx)
+            .expect("Vertex c doesn't exist");
+
+        assert_eq!(*b.weight(), 3, "Wrong weight for vertex b");
+        assert_eq!(*c.weight(), 4, "Wrong weight for vertex c");
+
+        test_neighbors(b, &[c_idx]);
+        test_neighbors(c, &[b_idx]);
     }
 
     mod helpers {
