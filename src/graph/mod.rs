@@ -69,14 +69,13 @@ impl<V, E> Graph<V, E> {
     ///
     /// Use [`Self::insert_edge`] or [`Self::insert_edges`] to define its edges.
     pub fn insert_or_update_vertex(&mut self, weight: V, idx: VertexIdx) -> &mut Self {
-        self.vertices.insert(
-            idx,
-            Vertex {
-                edges: HashMap::new(),
-                weight,
-            },
-        );
+        let edges = self
+            .vertices
+            .remove(&idx)
+            .map(|v| v.edges)
+            .unwrap_or_default();
 
+        self.vertices.insert(idx, Vertex { edges, weight });
         self
     }
 
@@ -225,6 +224,15 @@ impl<V, E> Vertex<V, E> {
 mod tests {
     use super::{Graph, Vertex, VertexIdx};
     use helpers::test_neighbors;
+
+    #[test]
+    fn test_send_sync() {
+        fn is_send<S: Send>() {}
+        fn is_sync<S: Sync>() {}
+
+        is_send::<Graph<String, String>>();
+        is_sync::<Graph<String, String>>();
+    }
 
     #[test]
     fn test_relationships() {
