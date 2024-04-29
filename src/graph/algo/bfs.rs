@@ -68,20 +68,17 @@ pub fn breadth_first_search<V, E>(
     }
 
     let mut queue: VecDeque<VertexIdx> = VecDeque::from([src_vertex_idx]);
+    let mut neighbors_cache = Vec::new();
 
     while let Some(vertex_idx) = queue.pop_front() {
-        let (vertex_distance, vertex_neighbors) = {
-            let vertex = graph.get_vertex(vertex_idx)?;
+        let vertex = graph.get_vertex(vertex_idx)?;
+        let vertex_distance = vertex.weight().distance;
 
-            (
-                vertex.weight().distance,
-                // FIXME: I don't really like this allocation, but I also don't want to deal with `RefCell`s
-                // Why? I'm too lazy to refactor the code
-                vertex.neighbors().map(|(idx, _)| idx).collect::<Vec<_>>(),
-            )
-        };
+        // A workaround for borrowing a mutable reference while an immutable reference is still in use.
+        // I don't like it, and I'm too lazy to refactor everything, but it works.
+        neighbors_cache.extend(vertex.neighbors().map(|(idx, _)| idx));
 
-        for neighbor_idx in vertex_neighbors {
+        for neighbor_idx in neighbors_cache.drain(..) {
             let neighbor = graph.get_mut_vertex(neighbor_idx)?;
             let neighbor_weight = neighbor.weight_mut();
 
@@ -94,6 +91,7 @@ pub fn breadth_first_search<V, E>(
             }
         }
 
+        // Can't move this to `vertex` without making the borrow checker mad
         graph.get_mut_vertex(vertex_idx)?.weight_mut().color = Color::Black;
     }
 
