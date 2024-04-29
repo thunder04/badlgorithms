@@ -34,6 +34,6 @@ impl<V, E> Vertex<V, E> {
     }
 
     pub fn is_adjacent(&self, to: VertexIdx) -> bool {
-        self.edges.iter().find(|e| *e.0 == to).is_some()
+        self.edges.iter().any(|e| *e.0 == to)
     }
 }
