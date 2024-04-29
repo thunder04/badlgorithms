@@ -149,10 +149,14 @@ impl<V, E> Graph<V, E> {
     /// - `edge_map`: `|(from_vertex_idx, from_vertex), (to_vertex_idx, to_vertex), old_edge_weight| -> Option<new_edge_weight>`
     ///     - It is called only if `vertex_map` returned `Some(_)` for both `from_vertex_idx` and `to_vertex_idx`.
     ///     - Return `None` to exclude the edge `(from_vertex_idx, to_vertex_idx)`.
-    pub fn filter_map<F, G, NV, NE>(&self, mut vertex_map: F, mut edge_map: G) -> Graph<NV, NE>
+    pub fn filter_map<'g, F, G, NV, NE>(
+        &'g self,
+        mut vertex_map: F,
+        mut edge_map: G,
+    ) -> Graph<NV, NE>
     where
         F: FnMut(VertexIdx) -> Option<NV>,
-        G: FnMut((VertexIdx, &Vertex<NV, NE>), (VertexIdx, &Vertex<NV, NE>), &E) -> Option<NE>,
+        G: FnMut((VertexIdx, &Vertex<NV, NE>), (VertexIdx, &Vertex<NV, NE>), &'g E) -> Option<NE>,
     {
         let mut graph = Graph::new();
 
